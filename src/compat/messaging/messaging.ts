@@ -26,6 +26,8 @@ export class AngularFireMessaging {
   public readonly messages: Observable<firebase.messaging.MessagePayload>;
   public readonly requestToken: Observable<string | null>;
   public readonly deleteToken: (token: string) => Observable<boolean>;
+  private _serviceWorkerRegistration: Promise<ServiceWorkerRegistration> | null;
+  private _vapidKey: string | null;
 
   constructor(
     @Inject(FIREBASE_OPTIONS) options: FirebaseOptions,
@@ -34,10 +36,11 @@ export class AngularFireMessaging {
     @Inject(PLATFORM_ID) platformId: Object,
     zone: NgZone,
     schedulers: ɵAngularFireSchedulers,
-    @Optional() @Inject(VAPID_KEY) vapidKey: string|null,
+    @Optional() @Inject(VAPID_KEY) _vapidKey: string|null,
     @Optional() @Inject(SERVICE_WORKER) _serviceWorker: any,
   ) {
-    const serviceWorker: Promise<ServiceWorkerRegistration> | null = _serviceWorker;
+    this.serviceWorkerRegistration = _serviceWorker;
+    this.vapidKey = _vapidKey;
 
     const messaging = of(undefined).pipe(
       subscribeOn(schedulers.outsideAngular),
@@ -63,8 +66,8 @@ export class AngularFireMessaging {
       observeOn(schedulers.insideAngular),
       switchMap(async messaging => {
         if (Notification.permission === 'granted') {
-          const serviceWorkerRegistration = serviceWorker ? await serviceWorker : null;
-          return await messaging.getToken({ vapidKey, serviceWorkerRegistration });
+          const serviceWorkerRegistration = this.serviceWorkerRegistration ? await this.serviceWorkerRegistration : null;
+          return await messaging.getToken({ vapidKey: this.vapidKey, serviceWorkerRegistration });
         } else {
           return null;
         }
@@ -117,7 +120,20 @@ export class AngularFireMessaging {
 
     return ɵlazySDKProxy(this, messaging, zone);
   }
-
+  
+  public set serviceWorkerRegistration(_serviceWorkerRegistration: Promise<ServiceWorkerRegistration>) {
+    this._serviceWorkerRegistration = _serviceWorkerRegistration;
+  }
+  public get serviceWorkerRegistration() {
+    return this._serviceWorkerRegistration;
+  }
+  
+  public set vapidKey(vapidKey: string) {
+    this._vapidKey = vapidKey;
+  }
+  public get vapidKey() {
+    return this._vapidKey;
+  }
 }
 
 ɵapplyMixins(AngularFireMessaging, [proxyPolyfillCompat]);
